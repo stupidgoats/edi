@@ -64,16 +64,18 @@ class AccountMove(models.Model):
         if self.company_id.embed_pdf_in_ubl_xml_invoice and not self.env.context.get(
             "no_embedded_pdf"
         ):
+            filename = "Invoice-" + self.name + ".pdf"
             docu_reference = etree.SubElement(
                 parent_node, ns["cac"] + "AdditionalDocumentReference"
             )
             docu_reference_id = etree.SubElement(docu_reference, ns["cbc"] + "ID")
-            docu_reference_id.text = "Invoice-" + self.name + ".pdf"
+            docu_reference_id.text = filename
             attach_node = etree.SubElement(docu_reference, ns["cac"] + "Attachment")
             binary_node = etree.SubElement(
                 attach_node,
                 ns["cbc"] + "EmbeddedDocumentBinaryObject",
                 mimeCode="application/pdf",
+                filename=filename,
             )
             ctx = dict()
             ctx["no_embedded_ubl_xml"] = True
@@ -139,7 +141,7 @@ class AccountMove(models.Model):
         line_amount.text = "%0.*f" % (account_precision, iline.price_subtotal)
         self._ubl_add_invoice_line_tax_total(iline, line_root, ns, version=version)
         self._ubl_add_item(
-            iline.name, iline.product_id, line_root, ns, type="sale", version=version
+            iline.name, iline.product_id, line_root, ns, type_="sale", version=version
         )
         price_node = etree.SubElement(line_root, ns["cac"] + "Price")
         price_amount = etree.SubElement(
