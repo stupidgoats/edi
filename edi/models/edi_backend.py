@@ -178,7 +178,12 @@ class EDIBackend(models.Model):
                     "edi_exchange_state": "output_pending",
                 }
             )
-        output = tools.pycompat.to_text(output)
+        try:
+            # TODO: Remove this on 15.0, we will keep it in order to not break current
+            # installations
+            output = tools.pycompat.to_text(output)
+        except UnicodeDecodeError:
+            pass
         if output:
             try:
                 self._validate_data(exchange_record, output)
@@ -395,7 +400,6 @@ class EDIBackend(models.Model):
             return False
         state = exchange_record.edi_exchange_state
         error = False
-        message = None
         try:
             self._exchange_process(exchange_record)
         except self._swallable_exceptions() as err:
@@ -403,10 +407,8 @@ class EDIBackend(models.Model):
                 raise
             error = repr(err)
             state = "input_processed_error"
-            message = exchange_record._exchange_status_message("process_ko")
             res = False
         else:
-            message = exchange_record._exchange_status_message("process_ok")
             error = None
             state = "input_processed"
             res = True
@@ -420,8 +422,10 @@ class EDIBackend(models.Model):
                     "exchanged_on": fields.Datetime.now(),
                 }
             )
-            if message:
-                exchange_record._notify_related_record(message)
+            if state == "input_processed_error":
+                exchange_record._notify_error("process_ko")
+            elif state == "input_processed":
+                exchange_record._notify_done()
         return res
 
     def _exchange_process(self, exchange_record):
@@ -562,3 +566,12 @@ class EDIBackend(models.Model):
         ack_type = exchange_record.type_id.ack_type_id
         values = {"parent_id": exchange_record.id}
         return self.create_record(ack_type.code, values)
+
+    def _find_existing_exchange_records(
+        self, exchange_type, extra_domain=None, count_only=False
+    ):
+        domain = [
+            ("backend_id", "=", self.id),
+            ("type_id", "=", exchange_type.id),
+        ] + extra_domain or []
+        return self.env["edi.exchange.record"].search(domain, count=count_only)

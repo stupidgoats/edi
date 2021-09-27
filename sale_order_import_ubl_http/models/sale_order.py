@@ -6,14 +6,11 @@ from base64 import b64encode
 from odoo import _, api, models
 from odoo.exceptions import UserError
 
-from odoo.addons.queue_job.job import job
-
 
 class SaleOrder(models.Model):
     _inherit = "sale.order"
 
     @api.model
-    @job(default_channel="root.ubl_import")
     def import_ubl_from_http(self, data):
         """Job called by the endpoint to import received data."""
         wiz = self.env["sale.order.import"].create({})
@@ -24,9 +21,7 @@ class SaleOrder(models.Model):
         res = wiz.sudo().import_order_button()
         action_xmlid = res["xml_id"]
         if action_xmlid == "sale_order_import.sale_order_import_action":
-            # TODO: Order has already been imported
-            #   there could be more than one to update ?
-            return _("Sales order has already been imported before, nothing done.")
+            raise UserError(_("Sales order has already been imported before"))
         elif action_xmlid == "sale.action_quotations":
             order_id = res["res_id"]
             order = self.env["sale.order"].browse(order_id)
